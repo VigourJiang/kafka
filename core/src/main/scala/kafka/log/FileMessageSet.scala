@@ -237,19 +237,17 @@ class FileMessageSet private[kafka](@volatile var file: File,
     * @param expectedMagicValue the magic value expected
     * @return true if all messages have expected magic value, false otherwise
     */
-   /**
-    * jfq, On-disk format of a message
-    *    offset         : 8 bytes
-    *    message length : 4 bytes (value: 4 + 1 + 1 + 8(if magic value > 0) + 4 + K + 4 + V)
-    *    crc            : 4 bytes
-    *    magic value    : 1 byte
-    *    attributes     : 1 byte
-    *    timestamp      : 8 bytes (Only exists when magic value is greater than zero)
-    *    key length     : 4 bytes
-    *    key            : K bytes
-    *    value length   : 4 bytes
-    *    value          : V bytes
-   */
+    // jfq, On-disk format of a message
+    // jfq, offset         : 8 bytes
+    // jfq, message length : 4 bytes (value: 4 + 1 + 1 + 8(if magic value > 0) + 4 + K + 4 + V)
+    // jfq, crc            : 4 bytes
+    // jfq, magic value    : 1 byte
+    // jfq, attributes     : 1 byte
+    // jfq, timestamp      : 8 bytes (Only exists when magic value is greater than zero)
+    // jfq, key length     : 4 bytes
+    // jfq, key            : K bytes
+    // jfq, value length   : 4 bytes
+    // jfq, value          : V bytes
   override def isMagicValueInAllWrapperMessages(expectedMagicValue: Byte): Boolean = {
     var location = start
     val offsetAndSizeBuffer = ByteBuffer.allocate(MessageSet.LogOverhead)

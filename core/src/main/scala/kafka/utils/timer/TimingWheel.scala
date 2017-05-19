@@ -23,7 +23,7 @@ import java.util.concurrent.atomic.AtomicInteger
 
 /*
  * Hierarchical Timing Wheels
- * ***************下面介绍的是Simple Timing Wheel***********************
+ // jfq, ***************下面介绍的是Simple Timing Wheel***********************
  * A simple timing wheel is a circular list of buckets of timer tasks. Let u be the time unit.
  * A timing wheel with size n has n buckets and can hold timer tasks in n * u time interval.
  * Each bucket holds timer tasks that fall into the corresponding time range. At the beginning,
@@ -36,7 +36,7 @@ import java.util.concurrent.atomic.AtomicInteger
  * A timing wheel has O(1) cost for insert/delete (start-timer/stop-timer) whereas priority queue
  * based timers, such as java.util.concurrent.DelayQueue and java.util.Timer, have O(log n)
  * insert/delete cost.
- * ***************下面介绍的是Hierarchical Timing Wheel***********************
+ // jfq, ***************下面介绍的是Hierarchical Timing Wheel***********************
  * A major drawback of a simple timing wheel is that it assumes that a timer request is within
  * the time interval of n * u from the current time. If a timer request is out of this interval,
  * it is an overflow. A hierarchical timing wheel deals with such overflows. It is a hierarchically
