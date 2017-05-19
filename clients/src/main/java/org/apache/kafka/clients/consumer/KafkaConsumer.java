@@ -658,7 +658,7 @@ public class KafkaConsumer<K, V> implements Consumer<K, V> {
             List<PartitionAssignor> assignors = config.getConfiguredInstances(
                     ConsumerConfig.PARTITION_ASSIGNMENT_STRATEGY_CONFIG,
                     PartitionAssignor.class);
-            // KafkaConsumer对象、ConsumerCoordinator对象、Fetcher对象，公用同一个ConsumerNetworkClient对象。
+            // jfq, KafkaConsumer对象、ConsumerCoordinator对象、Fetcher对象，公用同一个ConsumerNetworkClient对象。
             this.coordinator = new ConsumerCoordinator(this.client,
                     config.getString(ConsumerConfig.GROUP_ID_CONFIG),
                     config.getInt(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG),
