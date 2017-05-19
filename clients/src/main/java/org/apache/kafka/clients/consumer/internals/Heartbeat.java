@@ -15,6 +15,7 @@ package org.apache.kafka.clients.consumer.internals;
 /**
  * A helper class for managing the heartbeat to the coordinator
  */
+// jfq，控制发送HeartBeat的时间间隔
 public final class Heartbeat {
     private final long sessionTimeout;
     private final long heartbeatInterval;
@@ -24,6 +25,7 @@ public final class Heartbeat {
     private volatile long lastHeartbeatSend; // volatile since it is read by metrics
     private long lastHeartbeatReceive;
     private long lastSessionReset;
+    // jfq, 用来记录用户最近依次调用KafkaConsumer.poll的时间。如果用户调用poll间隔太长，会导致当前Consumer主动退出ConsumerGroup
     private long lastPoll;
     private boolean heartbeatFailed;
 

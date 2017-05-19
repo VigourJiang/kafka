@@ -41,14 +41,27 @@ import org.apache.kafka.common.utils.Time;
  * buffers are deallocated.
  * </ol>
  */
+// jfq, 功能与实现
+// jfq, 功能：对外实现ByteBuffer对象的分配与回收，分别对应allocate和deallocate方法。但该类保证分配的ByteBuffer的size的总大小，不会超过指定的totalMemory。
+// jfq, 实现：allocate时，如果有可用内存，则分配，没有可用内存，则当前线程会被挂起来。
+// jfq, deallocate时，从线程挂起列表中，拿到一个等待时间最长的线程，并激活该线程。该线程激活后，首先尝试给自己分配内存。
+// jfq, 如果内存仍然不够，重新把自己挂起来，如果内存足够，则分配内存， 并激活下一个等待线程。
+// jfq, 另外，如果请求的ByteBuffer的大小等于特定大小（pollableSize)，则优先从一个free list中分配。
+// jfq, 释放该ByteBuffer的时候，也是把该ByteBuffer放到freelist中。
 public final class BufferPool {
 
+    // jfq, The maximum amount of memory that this buffer pool can allocate
     private final long totalMemory;
+    // jfq, 大小等于该字段的ByteBUffer会被返回到free字段中。当然分配的时候也是优先从free字段分配。
     private final int poolableSize;
     private final ReentrantLock lock;
+    // jfq, pool of ByteBuffers
     private final Deque<ByteBuffer> free;
+    // jfq, 如果请求内存的时候，内存不够，则线程等待Condition上，并把Condition对象append到waiters队列中。waiters队列头对应线程，等待的时间最长。
     private final Deque<Condition> waiters;
+    // jfq, 当前仍然可以分配的内存大小
     private long availableMemory;
+    // jfq，以下字段都是和metric相关
     private final Metrics metrics;
     private final Time time;
     private final Sensor waitTime;
@@ -108,6 +121,7 @@ public final class BufferPool {
             if (this.availableMemory + freeListSize >= size) {
                 // we have enough unallocated or pooled memory to immediately
                 // satisfy the request
+                // jfq, 如果需要，则释放一些free中的ByteBuffer，保证availableMemory>=size
                 freeUp(size);
                 this.availableMemory -= size;
                 lock.unlock();

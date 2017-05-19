@@ -412,6 +412,7 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
     }
 
     // visible for testing
+    // jfq, 调用所有累积的CompletedOffsetCommit回调函数
     void invokeCompletedOffsetCommitCallbacks() {
         while (true) {
             OffsetCommitCompletion completion = completedOffsetCommits.poll();
@@ -425,6 +426,7 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
     public void commitOffsetsAsync(final Map<TopicPartition, OffsetAndMetadata> offsets, final OffsetCommitCallback callback) {
         invokeCompletedOffsetCommitCallbacks();
 
+        // jfq, 当前有Coordinator，直接启动提交操作
         if (!coordinatorUnknown()) {
             doCommitOffsetsAsync(offsets, callback);
         } else {
@@ -486,6 +488,7 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
      *             or to any of the specified partitions
      * @throws CommitFailedException if an unrecoverable error occurs before the commit can be completed
      */
+    // jfq, 被Consumer直接调用的方法
     public void commitOffsetsSync(Map<TopicPartition, OffsetAndMetadata> offsets) {
         invokeCompletedOffsetCommitCallbacks();
 
@@ -533,6 +536,7 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
             public void onComplete(Map<TopicPartition, OffsetAndMetadata> offsets, Exception exception) {
                 if (exception != null) {
                     log.warn("Auto offset commit failed for group {}: {}", groupId, exception.getMessage());
+                    // jfq, 安排重试
                     if (exception instanceof RetriableException)
                         nextAutoCommitDeadline = Math.min(time.milliseconds() + retryBackoffMs, nextAutoCommitDeadline);
                 } else {
@@ -556,6 +560,7 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
         }
     }
 
+    // jfq, write log message
     public static class DefaultOffsetCommitCallback implements OffsetCommitCallback {
         @Override
         public void onComplete(Map<TopicPartition, OffsetAndMetadata> offsets, Exception exception) {

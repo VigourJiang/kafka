@@ -46,8 +46,10 @@ import java.util.concurrent.locks.ReentrantLock
 import kafka.server._
 import kafka.common.TopicAndPartition
 
+// jfq, 在Controller内存中保存的关于当前集合的所有Topic，Partition，Replica，Broker信息
 class ControllerContext(val zkUtils: ZkUtils,
                         val zkSessionTimeout: Int) {
+  // jfq, 如果当前节点是Controller，则为非null。否则为null
   var controllerChannelManager: ControllerChannelManager = null
   val controllerLock: ReentrantLock = new ReentrantLock()
   var shuttingDownBrokerIds: mutable.Set[Int] = mutable.Set.empty
@@ -55,7 +57,10 @@ class ControllerContext(val zkUtils: ZkUtils,
   var epoch: Int = KafkaController.InitialControllerEpoch - 1
   var epochZkVersion: Int = KafkaController.InitialControllerEpochZkVersion - 1
   var allTopics: Set[String] = Set.empty
+
+  // jfq, 记录TopicAndPartition的Replica信息。Key: TopicAndPartition, Value: List of broker Id
   var partitionReplicaAssignment: mutable.Map[TopicAndPartition, Seq[Int]] = mutable.Map.empty
+  // jfq, 记录TopicAndPartition的Leader和ISR信息
   var partitionLeadershipInfo: mutable.Map[TopicAndPartition, LeaderIsrAndControllerEpoch] = mutable.Map.empty
   val partitionsBeingReassigned: mutable.Map[TopicAndPartition, ReassignedPartitionsContext] = new mutable.HashMap
   val partitionsUndergoingPreferredReplicaElection: mutable.Set[TopicAndPartition] = new mutable.HashSet
@@ -76,6 +81,7 @@ class ControllerContext(val zkUtils: ZkUtils,
   def liveOrShuttingDownBrokerIds = liveBrokerIdsUnderlying
   def liveOrShuttingDownBrokers = liveBrokersUnderlying
 
+  // jfq, 根据BrokerId，查找(Topic, Partition)集合
   def partitionsOnBroker(brokerId: Int): Set[TopicAndPartition] = {
     partitionReplicaAssignment
       .filter { case(topicAndPartition, replicas) => replicas.contains(brokerId) }
@@ -83,6 +89,7 @@ class ControllerContext(val zkUtils: ZkUtils,
       .toSet
   }
 
+  // jfq, 根据brokerId，查找(Topic, Partition, Replica)集合
   def replicasOnBrokers(brokerIds: Set[Int]): Set[PartitionAndReplica] = {
     brokerIds.flatMap { brokerId =>
       partitionReplicaAssignment
@@ -93,6 +100,7 @@ class ControllerContext(val zkUtils: ZkUtils,
     }.toSet
   }
 
+  // jfq，根据topic名字，查找(Topic, Partition, Replica)集合
   def replicasForTopic(topic: String): Set[PartitionAndReplica] = {
     partitionReplicaAssignment
       .filter { case (topicAndPartition, replicas) => topicAndPartition.topic.equals(topic) }
@@ -103,6 +111,7 @@ class ControllerContext(val zkUtils: ZkUtils,
       }.toSet
   }
 
+  // jfq, 根据topic名字，查找(Topic, Partition)集合
   def partitionsForTopic(topic: String): collection.Set[TopicAndPartition] = {
     partitionReplicaAssignment
       .filter { case(topicAndPartition, replicas) => topicAndPartition.topic.equals(topic) }.keySet
@@ -135,6 +144,7 @@ object KafkaController extends Logging {
 
   case class StateChangeLogger(override val loggerName: String) extends Logging
 
+  // jfq, 解析zk节点/controller的data信息，返回当前承担Controller角色的broker的Id
   def parseControllerId(controllerInfoString: String): Int = {
     try {
       Json.parseFull(controllerInfoString) match {
@@ -169,13 +179,18 @@ class KafkaController(val config : KafkaConfig, zkUtils: ZkUtils, val brokerStat
   // have a separate scheduler for the controller to be able to start and stop independently of the
   // kafka server
   private val autoRebalanceScheduler = new KafkaScheduler(1)
+
   var deleteTopicManager: TopicDeletionManager = null
+
+  // jfq, 四种Selector
   val offlinePartitionSelector = new OfflinePartitionLeaderSelector(controllerContext, config)
   private val reassignedPartitionLeaderSelector = new ReassignedPartitionLeaderSelector(controllerContext)
   private val preferredReplicaPartitionLeaderSelector = new PreferredReplicaPartitionLeaderSelector(controllerContext)
   private val controlledShutdownPartitionLeaderSelector = new ControlledShutdownLeaderSelector(controllerContext)
+
   private val brokerRequestBatch = new ControllerBrokerRequestBatch(this)
 
+  // jfq, zk各个节点的Listener
   private val partitionReassignedListener = new PartitionsReassignedListener(this)
   private val preferredReplicaElectionListener = new PreferredReplicaElectionListener(this)
   private val isrChangeNotificationListener = new IsrChangeNotificationListener(this)
@@ -251,6 +266,7 @@ class KafkaController(val config : KafkaConfig, zkUtils: ZkUtils, val brokerStat
         debug("Live brokers: " + controllerContext.liveBrokerIds.mkString(","))
       }
 
+      // jfq, 这里的replicationFactor就是replicator的数量
       val allPartitionsAndReplicationFactorOnBroker: Set[(TopicAndPartition, Int)] =
         inLock(controllerContext.controllerLock) {
           controllerContext.partitionsOnBroker(id)
@@ -294,6 +310,8 @@ class KafkaController(val config : KafkaConfig, zkUtils: ZkUtils, val brokerStat
             }
           }
       }
+
+      // jfq, 计算返回值：The number of partitions that the broker still leads.
       def replicatedPartitionsBrokerLeads() = inLock(controllerContext.controllerLock) {
         trace("All leaders = " + controllerContext.partitionLeadershipInfo.mkString(","))
         controllerContext.partitionLeadershipInfo.filter {
@@ -517,6 +535,7 @@ class KafkaController(val config : KafkaConfig, zkUtils: ZkUtils, val brokerStat
     info("New partition creation callback for %s".format(newPartitions.mkString(",")))
     partitionStateMachine.handleStateChanges(newPartitions, NewPartition)
     replicaStateMachine.handleStateChanges(controllerContext.replicasForPartition(newPartitions), NewReplica)
+
     partitionStateMachine.handleStateChanges(newPartitions, OnlinePartition, offlinePartitionSelector)
     replicaStateMachine.handleStateChanges(controllerContext.replicasForPartition(newPartitions), OnlineReplica)
   }
@@ -794,8 +813,10 @@ class KafkaController(val config : KafkaConfig, zkUtils: ZkUtils, val brokerStat
     val topicsForWhichPartitionReassignmentIsInProgress = controllerContext.partitionsBeingReassigned.keySet.map(_.topic)
     val topicsIneligibleForDeletion = topicsWithReplicasOnDeadBrokers | topicsForWhichPartitionReassignmentIsInProgress |
                                   topicsForWhichPreferredReplicaElectionIsInProgress
+
     info("List of topics to be deleted: %s".format(topicsQueuedForDeletion.mkString(",")))
     info("List of topics ineligible for deletion: %s".format(topicsIneligibleForDeletion.mkString(",")))
+
     // initialize the topic deletion manager
     deleteTopicManager = new TopicDeletionManager(this, topicsQueuedForDeletion, topicsIneligibleForDeletion)
   }

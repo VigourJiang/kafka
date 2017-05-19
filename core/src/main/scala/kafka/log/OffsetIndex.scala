@@ -64,6 +64,7 @@ class OffsetIndex(file: File, baseOffset: Long, maxIndexSize: Int = -1)
    */
   private def lastEntry: OffsetPosition = {
     inLock(lock) {
+      // jfq, _entries是Entry的数量
       _entries match {
         case 0 => OffsetPosition(baseOffset, 0)
         case s => parseEntry(mmap, s - 1).asInstanceOf[OffsetPosition]
@@ -97,6 +98,7 @@ class OffsetIndex(file: File, baseOffset: Long, maxIndexSize: Int = -1)
 
   private def physical(buffer: ByteBuffer, n: Int): Int = buffer.getInt(n * entrySize + 4)
 
+  // jfq, 每条entry占据8个字节，前4个字节是Message的Offset（一个逻辑数），后4个字节是Message在文件中的位置。
   override def parseEntry(buffer: ByteBuffer, n: Int): IndexEntry = {
       OffsetPosition(baseOffset + relativeOffset(buffer, n), physical(buffer, n))
   }

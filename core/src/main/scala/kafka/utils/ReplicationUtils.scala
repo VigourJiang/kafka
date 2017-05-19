@@ -39,6 +39,8 @@ object ReplicationUtils extends Logging {
     updatePersistentPath
   }
 
+  // jfq, 在zk中创建节点/isr_change_notification/isr_change_NNNN，并写入数据
+  // jfq, 该节点是Sequential Persistent类型的，因此NNNN是zk自动产生的序列号。
   def propagateIsrChanges(zkUtils: ZkUtils, isrChangeSet: Set[TopicAndPartition]): Unit = {
     val isrChangeNotificationPath: String = zkUtils.createSequentialPersistentPath(
       ZkUtils.IsrChangeNotificationPath + "/" + IsrChangeNotificationPrefix,

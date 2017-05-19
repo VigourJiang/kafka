@@ -25,6 +25,9 @@ import org.apache.kafka.common.utils.Utils;
 /**
  * A record: a serialized key and value along with the associated CRC and other fields
  */
+// jfq, 表示一条消息，包含消息的各个字段，以及crc计算等方法的，但是：
+// 1. 不包含该消息的Offset。
+// 2. 不包含消息后台对应的ByteBuffer。输出到ByteBuffer由static方法实现，ByteBuffer作为参数传入。
 public final class Record {
 
     /**
@@ -143,6 +146,7 @@ public final class Record {
 
     // Write a record to the buffer, if the record's compression type is none, then
     // its value payload should be already compressed with the specified type
+    // jfq, 把一条Record写入到ByteBuffer中
     public static void write(ByteBuffer buffer, long timestamp, byte[] key, byte[] value, CompressionType type, int valueOffset, int valueSize) {
         // construct the compressor with compression type none since this function will not do any
         //compression according to the input type, it will just write the record's payload as is
@@ -155,6 +159,7 @@ public final class Record {
     }
 
     public static void write(Compressor compressor, long crc, byte attributes, long timestamp, byte[] key, byte[] value, int valueOffset, int valueSize) {
+    // jfq, 把一条Record写入到Compressor中，一个Compressor后面对应了一个ByteBuffer。
         // write crc
         compressor.putInt((int) (crc & 0xffffffffL));
         // write magic value

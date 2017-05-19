@@ -188,8 +188,11 @@ public abstract class AbstractCoordinator implements Closeable {
      * Block until the coordinator for this group is known and is ready to receive requests.
      */
     public synchronized void ensureCoordinatorReady() {
+        // jfq, 注意，这里是一个循环，一直等到coordinator非null
         while (coordinatorUnknown()) {
             RequestFuture<Void> future = lookupCoordinator();
+
+            // jfq, 以下语句会block
             client.poll(future);
 
             if (future.failed()) {
@@ -206,6 +209,7 @@ public abstract class AbstractCoordinator implements Closeable {
         }
     }
 
+    // jfq, 向选定一个Broker，向它查询自己当前的Coordinator是哪个Broker
     protected synchronized RequestFuture<Void> lookupCoordinator() {
         if (findCoordinatorFuture == null) {
             // find a node to ask about the coordinator
@@ -290,7 +294,9 @@ public abstract class AbstractCoordinator implements Closeable {
     }
 
     // visible for testing. Joins the group without starting the heartbeat thread.
+    // jfq, 本函数成功返回后，当前Consumer应该已经加入了特定的Consumer Group
     void joinGroupIfNeeded() {
+        // jfq, 注意这里是一个循环
         while (needRejoin() || rejoinIncomplete()) {
             ensureCoordinatorReady();
 
@@ -305,7 +311,9 @@ public abstract class AbstractCoordinator implements Closeable {
             }
 
             RequestFuture<ByteBuffer> future = initiateJoinGroup();
+            // jfq, 等待应答
             client.poll(future);
+            // jfq, 设置this.joinFuture = null
             resetJoinGroupFuture();
 
             if (future.succeeded()) {
@@ -328,6 +336,7 @@ public abstract class AbstractCoordinator implements Closeable {
         this.joinFuture = null;
     }
 
+    // jfq, 这个函数会依次触发JOIN Group和Sync Group两个命令。只有两个命令都成功了，返回的Future对象才会成功
     private synchronized RequestFuture<ByteBuffer> initiateJoinGroup() {
         // we store the join future in case we are woken up by the user after beginning the
         // rebalance in the call to poll below. This ensures that we do not mistakenly attempt
@@ -412,10 +421,12 @@ public abstract class AbstractCoordinator implements Closeable {
                         // the group. In this case, we do not want to continue with the sync group.
                         future.raise(new UnjoinedGroupException());
                     } else {
+                        // jfq, 更新Generation
                         AbstractCoordinator.this.generation = new Generation(joinResponse.generationId(),
                                 joinResponse.memberId(), joinResponse.groupProtocol());
                         AbstractCoordinator.this.rejoinNeeded = false;
                         if (joinResponse.isLeader()) {
+                            // jfq, 当前Consumer是ConsumerGroup的leader
                             onJoinLeader(joinResponse).chain(future);
                         } else {
                             onJoinFollower().chain(future);
@@ -453,14 +464,17 @@ public abstract class AbstractCoordinator implements Closeable {
         }
     }
 
+    // jfq, 作为Consumer Group中的Follower，向Coordinator发送SyncGroup命令，并期待应答。
     private RequestFuture<ByteBuffer> onJoinFollower() {
         // send follower's sync group with an empty assignment
+        // jfq, 注意这里的partitionAssignment参数为空集合。
         SyncGroupRequest request = new SyncGroupRequest(groupId, generation.generationId,
                 generation.memberId, Collections.<String, ByteBuffer>emptyMap());
         log.debug("Sending follower SyncGroup for group {} to coordinator {}: {}", groupId, this.coordinator, request);
         return sendSyncGroupRequest(request);
     }
 
+    // jfq, 作为Consumer Group中的leader，执行partition的Assignment，然后把分配结果通过Sync_Group命令，发送给Coordinator
     private RequestFuture<ByteBuffer> onJoinLeader(JoinGroupResponse joinResponse) {
         try {
             // perform the leader synchronization and send back the assignment for the group
@@ -475,6 +489,7 @@ public abstract class AbstractCoordinator implements Closeable {
         }
     }
 
+    // jfq, 向Coordinator发送Sync_Group命令
     private RequestFuture<ByteBuffer> sendSyncGroupRequest(SyncGroupRequest request) {
         if (coordinatorUnknown())
             return RequestFuture.coordinatorNotAvailable();
@@ -526,6 +541,7 @@ public abstract class AbstractCoordinator implements Closeable {
      * one of the brokers. The returned future should be polled to get the result of the request.
      * @return A request future which indicates the completion of the metadata request
      */
+    // jfq, 向Node发送GROUP_COORDINATOR请求，查询自己的Coordinator是哪个Broker。
     private RequestFuture<Void> sendGroupCoordinatorRequest(Node node) {
         // initiate the group metadata request
         log.debug("Sending coordinator request for group {} to broker {}", groupId, node);
@@ -534,6 +550,7 @@ public abstract class AbstractCoordinator implements Closeable {
                      .compose(new GroupCoordinatorResponseHandler());
     }
 
+    // jfq, 解析GROUP_COORDINATOR请求的应答，并设置当前的coordinator字段
     private class GroupCoordinatorResponseHandler extends RequestFutureAdapter<ClientResponse, Void> {
 
         @Override
@@ -673,6 +690,7 @@ public abstract class AbstractCoordinator implements Closeable {
     }
 
     // visible for testing
+    // jfq, 向Coordinator发送HeartBeat请求，并注册HeartbeatResponse的Handler
     synchronized RequestFuture<Void> sendHeartbeatRequest() {
         HeartbeatRequest req = new HeartbeatRequest(this.groupId, this.generation.generationId, this.generation.memberId);
         return client.send(coordinator, ApiKeys.HEARTBEAT, req)
@@ -875,6 +893,7 @@ public abstract class AbstractCoordinator implements Closeable {
                             // probably make sure the coordinator is still healthy.
                             coordinatorDead();
                         } else if (heartbeat.pollTimeoutExpired(now)) {
+                            // jfq, 客户端代码调用poll方法间隔太长了，主动离开当前Group
                             // the poll timeout has expired, which means that the foreground thread has stalled
                             // in between calls to poll(), so we explicitly leave the group.
                             maybeLeaveGroup();

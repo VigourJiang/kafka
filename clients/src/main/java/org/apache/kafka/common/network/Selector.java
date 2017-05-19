@@ -308,6 +308,7 @@ public class Selector implements Selectable {
         Iterator<SelectionKey> iterator = selectionKeys.iterator();
         while (iterator.hasNext()) {
             SelectionKey key = iterator.next();
+            // jfq，注意这里会执行删除操作。
             iterator.remove();
             KafkaChannel channel = channel(key);
 
@@ -319,6 +320,8 @@ public class Selector implements Selectable {
             try {
 
                 /* complete any connections that have finished their handshake (either normally or immediately) */
+                // jfq, 对于immediatelyConnected连接，不会触发OP_CONNECT事件。因此用isImmediatelyConnected参数标记一下，
+                // jfq, 强迫进入初始化分支。
                 if (isImmediatelyConnected || key.isConnectable()) {
                     if (channel.finishConnect()) {
                         this.connected.add(channel.id());
@@ -574,6 +577,7 @@ public class Selector implements Selectable {
             while (iter.hasNext()) {
                 Map.Entry<KafkaChannel, Deque<NetworkReceive>> entry = iter.next();
                 KafkaChannel channel = entry.getKey();
+                // jfq, 一旦channel摆脱了muted状态，就可以向completedReceives中增加数据了
                 if (!channel.isMute()) {
                     Deque<NetworkReceive> deque = entry.getValue();
                     NetworkReceive networkReceive = deque.poll();

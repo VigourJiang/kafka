@@ -26,6 +26,7 @@ import org.apache.kafka.common.utils.Utils;
 /**
  * A {@link Records} implementation backed by a ByteBuffer.
  */
+// jfq, 对应了一组消息。如果开启了消息的压缩，则是对一组消息进行整体压缩。
 public class MemoryRecords implements Records {
 
     private final static int WRITE_LIMIT_FOR_READABLE_ONLY = -1;

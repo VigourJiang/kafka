@@ -180,6 +180,8 @@ object RequestChannel extends Logging {
   case object CloseConnectionAction extends ResponseAction
 }
 
+// jfq, 这个类维护了两个队列，requestQueue和responseQueue。
+// jfq, 请求和应答的发送和接收都是通过这两个队列。
 class RequestChannel(val numProcessors: Int, val queueSize: Int) extends KafkaMetricsGroup {
   private var responseListeners: List[(Int) => Unit] = Nil
   private val requestQueue = new ArrayBlockingQueue[RequestChannel.Request](queueSize)

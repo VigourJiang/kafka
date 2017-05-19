@@ -237,6 +237,19 @@ class FileMessageSet private[kafka](@volatile var file: File,
     * @param expectedMagicValue the magic value expected
     * @return true if all messages have expected magic value, false otherwise
     */
+   /**
+    * jfq, On-disk format of a message
+    *    offset         : 8 bytes
+    *    message length : 4 bytes (value: 4 + 1 + 1 + 8(if magic value > 0) + 4 + K + 4 + V)
+    *    crc            : 4 bytes
+    *    magic value    : 1 byte
+    *    attributes     : 1 byte
+    *    timestamp      : 8 bytes (Only exists when magic value is greater than zero)
+    *    key length     : 4 bytes
+    *    key            : K bytes
+    *    value length   : 4 bytes
+    *    value          : V bytes
+   */
   override def isMagicValueInAllWrapperMessages(expectedMagicValue: Byte): Boolean = {
     var location = start
     val offsetAndSizeBuffer = ByteBuffer.allocate(MessageSet.LogOverhead)
@@ -307,6 +320,7 @@ class FileMessageSet private[kafka](@volatile var file: File,
   def iterator(maxMessageSize: Int): Iterator[MessageAndOffset] = {
     new IteratorTemplate[MessageAndOffset] {
       var location = start
+      // jfq, 8个字节的offset，4个字节的size，后续跟着size字节的消息体
       val sizeOffsetLength = 12
       val sizeOffsetBuffer = ByteBuffer.allocate(sizeOffsetLength)
 
@@ -316,12 +330,15 @@ class FileMessageSet private[kafka](@volatile var file: File,
 
         // read the size of the item
         sizeOffsetBuffer.rewind()
+        // jfq, 先读12个字节
         channel.read(sizeOffsetBuffer, location)
         if(sizeOffsetBuffer.hasRemaining)
           return allDone()
 
         sizeOffsetBuffer.rewind()
+        // jfq, 8个字节
         val offset = sizeOffsetBuffer.getLong()
+        // jfq, 4个字节
         val size = sizeOffsetBuffer.getInt()
         if(size < Message.MinMessageOverhead || location + sizeOffsetLength + size > end)
           return allDone()
@@ -331,6 +348,7 @@ class FileMessageSet private[kafka](@volatile var file: File,
         // read the item itself
         val buffer = ByteBuffer.allocate(size)
         channel.read(buffer, location + sizeOffsetLength)
+        // jfq, 再读size个字节
         if(buffer.hasRemaining)
           return allDone()
         buffer.rewind()

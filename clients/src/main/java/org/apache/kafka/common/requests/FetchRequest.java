@@ -48,14 +48,39 @@ public class FetchRequest extends AbstractRequest {
     // default values for older versions where a request level limit did not exist
     public static final int DEFAULT_RESPONSE_MAX_BYTES = Integer.MAX_VALUE;
 
+    // jfq, The replica id indicates the node id of the replica initiating this request.
+    // jfq, Normal client consumers should always specify this as -1 as they have no node id.
+    // jfq, Other brokers set this to be their own node id.
+    // jfq, The value -2 is accepted to allow a non-broker to issue fetch requests
+    // jfq, as if it were a replica broker for debugging purposes.
     private final int replicaId;
+
+    // jfq, The max wait time is the maximum amount of time in milliseconds to block waiting
+    // jfq, if insufficient data is available at the time the request is issued.
     private final int maxWait;
+
+    // jfq, This is the minimum number of bytes of messages that must be available to give a response.
+    // jfq, If the client sets this to 0 the server will always respond immediately,
+    // jfq, however if there is no new data since their last request they will just get back empty message sets.
+    // jfq, If this is set to 1, the server will respond as soon as at least one partition has at least 1 byte of data
+    // jfq, or the specified timeout occurs.
+    // jfq, By setting higher values in combination with the timeout the consumer can tune for throughput
+    // jfq, and trade a little additional latency for reading only large chunks of data
+    // jfq, (e.g. setting MaxWaitTime to 100 ms and setting MinBytes to 64k would allow the server
+    // jfq, to wait up to 100ms to try to accumulate 64k of data before responding).
     private final int minBytes;
+
+    // jfq, 这个字段没有什么用处
     private final int maxBytes;
+
     private final LinkedHashMap<TopicPartition, PartitionData> fetchData;
 
     public static final class PartitionData {
+        // jfq, The offset to begin this fetch from.
         public final long offset;
+
+        // jfq, The maximum bytes to include in the message set for this partition.
+        // jfq, This helps bound the size of the response.
         public final int maxBytes;
 
         public PartitionData(long offset, int maxBytes) {

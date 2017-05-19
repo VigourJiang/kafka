@@ -26,6 +26,13 @@ import org.apache.kafka.common.TopicPartition
 import collection.mutable
 
 private[coordinator] sealed trait GroupState { def state: Byte }
+// jfq, action:
+// jfq, heartbeat
+// jfq, sync group
+// jfq, leave group
+// jfq, join group
+// jfq, offset commit
+// jfq, offset fetch
 
 /**
  * Group is preparing to rebalance
@@ -145,6 +152,7 @@ private[coordinator] class GroupMetadata(val groupId: String, initialState: Grou
 
   private var state: GroupState = initialState
   private val members = new mutable.HashMap[String, MemberMetadata]
+  // jfq，这里是缓存的Consumer的Offset数据。写入log后，立即更新该offset；读取offset的时候，从该缓存直接读取。
   private val offsets = new mutable.HashMap[TopicPartition, OffsetAndMetadata]
   private val pendingOffsetCommits = new mutable.HashMap[TopicPartition, OffsetAndMetadata]
 
@@ -166,8 +174,10 @@ private[coordinator] class GroupMetadata(val groupId: String, initialState: Grou
     assert(this.protocolType.orNull == member.protocolType)
     assert(supportsProtocols(member.protocols))
 
+    // jfq, 第一个member做为leader
     if (leaderId == null)
       leaderId = memberId
+
     members.put(memberId, member)
   }
 
@@ -177,6 +187,7 @@ private[coordinator] class GroupMetadata(val groupId: String, initialState: Grou
       leaderId = if (members.isEmpty) {
         null
       } else {
+        // jfq, leader退出了，从member中另选一个作为leader
         members.keys.head
       }
     }
@@ -197,6 +208,7 @@ private[coordinator] class GroupMetadata(val groupId: String, initialState: Grou
   // TODO: decide if ids should be predictable or random
   def generateMemberIdSuffix = UUID.randomUUID().toString
 
+  // jfq, 当前状态是Stable, AwaitingSync或者Empty，可以进行Rebalance
   def canRebalance = GroupMetadata.validPreviousStates(PreparingRebalance).contains(state)
 
   def transitionTo(groupState: GroupState) {
@@ -212,6 +224,7 @@ private[coordinator] class GroupMetadata(val groupId: String, initialState: Grou
     val candidates = candidateProtocols
 
     // let each member vote for one of the protocols and choose the one with the most votes
+    // jfq, 这里投票的原理是：每个member都有一个支持的protocol列表，列表前面的protocol优先级更高。
     val votes: List[(String, Int)] = allMemberMetadata
       .map(_.vote(candidates))
       .groupBy(identity)

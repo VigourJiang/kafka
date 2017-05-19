@@ -19,6 +19,7 @@ package org.apache.kafka.common.record;
 /**
  * An offset and record pair
  */
+// jfq, 一条Log和该Log对应的Offset
 public final class LogEntry {
 
     private final long offset;

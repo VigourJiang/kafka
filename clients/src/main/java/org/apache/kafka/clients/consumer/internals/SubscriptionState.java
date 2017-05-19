@@ -53,25 +53,36 @@ public class SubscriptionState {
             "Subscription to topics, partitions and pattern are mutually exclusive";
 
     private enum SubscriptionType {
-        NONE, AUTO_TOPICS, AUTO_PATTERN, USER_ASSIGNED
+        NONE,
+        // jfq, 用topic的名字进行subscribe，需要coordinator通知具体subscribe上的partition
+        AUTO_TOPICS,
+        // jfq, 用pattern进行subscribe，需要coordinator通知具体subscribe上的partition
+        AUTO_PATTERN,
+        // jfq, 用户直接指定了topic和partition
+        USER_ASSIGNED
     }
 
     /* the type of subscription */
     private SubscriptionType subscriptionType;
 
     /* the pattern user has requested */
+    // jfq, 如果用户是用Pattern进行subscribe，这个字段保存用户指定的pattern
     private Pattern subscribedPattern;
 
     /* the list of topics the user has requested */
+    // jfq, 如果用户是用subscribe（不管是用Pattern还是直接指定topic name），此字段表示subscribe的topic name。
+    // jfq, 如果用户是用assign手动指定topic和partition，此字段没有用处。
     private Set<String> subscription;
 
     /* the list of partitions the user has requested */
+    // jfq, 此字段只写，没有读过。
     private Set<TopicPartition> userAssignment;
 
     /* the list of topics the group has subscribed to (set only for the leader on join group completion) */
     private final Set<String> groupSubscription;
 
     /* the partitions that are currently assigned, note that the order of partition matters (see FetchBuilder for more details) */
+    // jfq, 不管用户是scribe还是assign，这个字段都表示用户关注到的最终topic和partition。
     private final PartitionStates<TopicPartitionState> assignment;
 
     /* do we need to request the latest committed offsets from the coordinator? */
@@ -107,6 +118,8 @@ public class SubscriptionState {
             throw new IllegalStateException(SUBSCRIPTION_EXCEPTION_MESSAGE);
     }
 
+    // jfq, user called KafkaConsumer.subscribe(Collection<String>) to subscribe to the given list of topics
+    // jfq, to get dynamically assigned partitions.
     public void subscribe(Set<String> topics, ConsumerRebalanceListener listener) {
         if (listener == null)
             throw new IllegalArgumentException("RebalanceListener cannot be null");
@@ -118,6 +131,7 @@ public class SubscriptionState {
         changeSubscription(topics);
     }
 
+    // jfq, 这里的参数topics，是已经匹配好的结果，就是topic name
     public void subscribeFromPattern(Set<String> topics) {
         if (subscriptionType != SubscriptionType.AUTO_PATTERN)
             throw new IllegalArgumentException("Attempt to subscribe from pattern while subscription type set to " +
@@ -156,6 +170,7 @@ public class SubscriptionState {
      * note this is different from {@link #assignFromSubscribed(Collection)}
      * whose input partitions are provided from the subscribed topics.
      */
+    // jfq, user called KafkaConsumer.assign(Collection<TopicPartition> partitions)
     public void assignFromUser(Set<TopicPartition> partitions) {
         setSubscriptionType(SubscriptionType.USER_ASSIGNED);
 
@@ -178,6 +193,7 @@ public class SubscriptionState {
      * Change the assignment to the specified partitions returned from the coordinator,
      * note this is different from {@link #assignFromUser(Set)} which directly set the assignment from user inputs
      */
+    // jfq, called by Coordinator.onJoinComplete
     public void assignFromSubscribed(Collection<TopicPartition> assignments) {
         if (!this.partitionsAutoAssigned())
             throw new IllegalArgumentException("Attempt to dynamically assign partitions while manual assignment in use");
@@ -198,6 +214,8 @@ public class SubscriptionState {
         return map;
     }
 
+    // jfq, user called KafkaConsumer.subscribe(Pattern, ConsumerRebalanceListener)
+    // jfq, to subscribe to the given list of topics to get dynamically assigned partitions.
     public void subscribe(Pattern pattern, ConsumerRebalanceListener listener) {
         if (listener == null)
             throw new IllegalArgumentException("RebalanceListener cannot be null");

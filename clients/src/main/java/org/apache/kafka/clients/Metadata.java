@@ -192,6 +192,7 @@ public final class Metadata {
     /**
      * Updates the cluster metadata. If topic expiry is enabled, expiry time
      * is set for topics if required and expired topics are removed from the metadata.
+     * jfq,已经从服务器获取到了最新的元数据（也就是参数cluster），现在要通过update方法存储到Metadata对象中。
      */
     public synchronized void update(Cluster cluster, long now) {
         Objects.requireNonNull(cluster, "cluster should not be null");
@@ -306,6 +307,9 @@ public final class Metadata {
         void onMetadataUpdate(Cluster cluster);
     }
 
+    // jfq, 根据Cluster对象，构造一个新的Cluster对象。大部分字段都是直接复制过来，其中：
+    // jfq, partitionInfos字段只包含当前topics集合的Partition。
+    // jfq, unauthorizedTopics只包含当前topics集合。
     private Cluster getClusterForCurrentTopics(Cluster cluster) {
         Set<String> unauthorizedTopics = new HashSet<>();
         Collection<PartitionInfo> partitionInfos = new ArrayList<>();

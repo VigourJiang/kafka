@@ -58,6 +58,7 @@ class SystemTimer(executorName: String,
                   wheelSize: Int = 20,
                   startMs: Long = SystemTime.hiResClockMs) extends Timer {
 
+  // jfq, 在线程池中，执行到期后的定时任务
   // timeout timer
   private[this] val taskExecutor = Executors.newFixedThreadPool(1, new ThreadFactory() {
     def newThread(runnable: Runnable): Thread =
@@ -91,6 +92,7 @@ class SystemTimer(executorName: String,
   private def addTimerTaskEntry(timerTaskEntry: TimerTaskEntry): Unit = {
     if (!timingWheel.add(timerTaskEntry)) {
       // Already expired or cancelled
+      // jfq, 直接放到线程池执行，这里也是触发task执行的唯一机会
       if (!timerTaskEntry.cancelled)
         taskExecutor.submit(timerTaskEntry.timerTask)
     }
@@ -108,7 +110,11 @@ class SystemTimer(executorName: String,
       writeLock.lock()
       try {
         while (bucket != null) {
+          // jfq, 更新timingWheel的currentTime为bucket的expiration
+          // jfq, 因此，这个bucket肯定会变成超时
           timingWheel.advanceClock(bucket.getExpiration())
+          // jfq, 把这个bucket中所有的TimerTaskEntry，拿出来重新插入一次。
+          // jfq, 插入失败的（超时的），就会被执行。
           bucket.flush(reinsert)
           bucket = delayQueue.poll()
         }

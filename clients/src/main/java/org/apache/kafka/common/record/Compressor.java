@@ -131,18 +131,27 @@ public class Compressor {
             int pos = buffer.position();
             // write the header, for the end offset write as number of records - 1
             buffer.position(initPos);
+
+            // jfq, 写入record count（8）
             buffer.putLong(numRecords - 1);
+            // jfq, 写入size（4）
             buffer.putInt(pos - initPos - Records.LOG_OVERHEAD);
+
+            // jfq，继续写入一条虚拟的record，该record的key和value均为null。
             // write the shallow message (the crc and value size are not correct yet)
             Record.write(buffer, maxTimestamp, null, null, type, 0, -1);
             // compute the fill the value size
+            // jfq, 重写虚拟record的value size字段
             int valueSize = pos - initPos - Records.LOG_OVERHEAD - Record.RECORD_OVERHEAD;
             buffer.putInt(initPos + Records.LOG_OVERHEAD + Record.KEY_OFFSET_V1, valueSize);
+
+            // jfq, 重写虚拟record的crc字段
             // compute and fill the crc at the beginning of the message
             long crc = Record.computeChecksum(buffer,
                 initPos + Records.LOG_OVERHEAD + Record.MAGIC_OFFSET,
                 pos - initPos - Records.LOG_OVERHEAD - Record.MAGIC_OFFSET);
             Utils.writeUnsignedInt(buffer, initPos + Records.LOG_OVERHEAD + Record.CRC_OFFSET, crc);
+
             // reset the position
             buffer.position(pos);
 

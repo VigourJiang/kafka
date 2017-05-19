@@ -23,9 +23,16 @@ import java.util.Map;
 /**
  * The set of requests which have been sent or are being sent but haven't yet received a response
  */
+// jfq，这里有个假设，就是Client发送的Request和Server发送Response的顺序是一致的。比如
+// jfq, Client发送：Req1 ... Req2 ... Req3 ... Req4 ...
+// jfq, Server发送：Resp1 ... Resp2 ... Resp3 ... Resp4 ...
+// jfq, 每个队列都有一个最大长度，超过该长度，将不能继续发送。
 final class InFlightRequests {
 
+    // jfq, 每个连接InFlightRequest队列的最大长度，超过该长度，将不能继续发送。
     private final int maxInFlightRequestsPerConnection;
+    // jfq, key: destination broker
+    // jfq, value: 向目标节点发送的请求队列。队列头的request是最近发送的，队列尾部的request是最老发送的。
     private final Map<String, Deque<ClientRequest>> requests = new HashMap<>();
 
     public InFlightRequests(int maxInFlightRequestsPerConnection) {
@@ -41,6 +48,7 @@ final class InFlightRequests {
             reqs = new ArrayDeque<>();
             this.requests.put(request.request().destination(), reqs);
         }
+        // jfq, 向头部添加
         reqs.addFirst(request);
     }
 

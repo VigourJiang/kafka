@@ -135,6 +135,7 @@ public class Fetcher<K, V> {
         return !completedFetches.isEmpty();
     }
 
+    // jfq, 判断request和response对应的TopicPartition集合是否相同
     private boolean matchesRequestedPartitions(FetchRequest request, FetchResponse response) {
         Set<TopicPartition> requestedPartitions = request.fetchData().keySet();
         Set<TopicPartition> fetchedPartitions = response.responseData().keySet();
@@ -145,6 +146,7 @@ public class Fetcher<K, V> {
      * Set-up a fetch request for any node that we have assigned partitions for which doesn't already have
      * an in-flight fetch or pending fetch data.
      */
+    // jfq, called by KafkaConsumer
     public void sendFetches() {
         for (Map.Entry<Node, FetchRequest> fetchEntry : createFetchRequests().entrySet()) {
             final FetchRequest request = fetchEntry.getValue();
@@ -152,6 +154,7 @@ public class Fetcher<K, V> {
 
             client.send(fetchTarget, ApiKeys.FETCH, request)
                     .addListener(new RequestFutureListener<ClientResponse>() {
+                        // jfq，解析请求结果， 并添加到completedFetches字段
                         @Override
                         public void onSuccess(ClientResponse resp) {
                             FetchResponse response = new FetchResponse(resp.responseBody());
@@ -314,6 +317,7 @@ public class Fetcher<K, V> {
      * @return A future that indicates result of sent metadata request
      */
     private RequestFuture<ClientResponse> sendMetadataRequest(MetadataRequest request) {
+        // jfq, METADATA请求，可以发送给任何一个Broker
         final Node node = client.leastLoadedNode();
         if (node == null)
             return RequestFuture.noBrokersAvailable();
@@ -411,6 +415,7 @@ public class Fetcher<K, V> {
      * @throws OffsetOutOfRangeException If there is OffsetOutOfRange error in fetchResponse and
      *         the defaultResetPolicy is NONE
      */
+    // jfq, called by KafkaConsumer
     public Map<TopicPartition, List<ConsumerRecord<K, V>>> fetchedRecords() {
         Map<TopicPartition, List<ConsumerRecord<K, V>>> drained = new HashMap<>();
         int recordsRemaining = maxPollRecords;
@@ -607,10 +612,15 @@ public class Fetcher<K, V> {
 
     private List<TopicPartition> fetchablePartitions() {
         List<TopicPartition> fetchable = subscriptions.fetchablePartitions();
+
+        // jfq, 如果某个Partition有已经fetched回来、但还没有处理的数据，则不进行下一步fetch
+        // jfq, 这样的数据，既可能保存在completedFetches，也可能保存在nextInLineRecords中
         if (nextInLineRecords != null && !nextInLineRecords.isDrained())
             fetchable.remove(nextInLineRecords.partition);
+
         for (CompletedFetch completedFetch : completedFetches)
             fetchable.remove(completedFetch.partition);
+
         return fetchable;
     }
 
@@ -624,6 +634,7 @@ public class Fetcher<K, V> {
         Map<Node, LinkedHashMap<TopicPartition, FetchRequest.PartitionData>> fetchable = new LinkedHashMap<>();
         for (TopicPartition partition : fetchablePartitions()) {
             Node node = cluster.leaderFor(partition);
+            // jfq, 只是标记一下需要updatemetadata，本次循环就不再fetch了
             if (node == null) {
                 metadata.requestUpdate();
             } else if (this.client.pendingRequestCount(node) == 0) {
@@ -634,6 +645,7 @@ public class Fetcher<K, V> {
                     fetchable.put(node, fetch);
                 }
 
+                // jfq，利用当前记录下的position
                 long position = this.subscriptions.position(partition);
                 fetch.put(partition, new FetchRequest.PartitionData(position, this.fetchSize));
                 log.trace("Added fetch request for partition {} at offset {}", partition, position);

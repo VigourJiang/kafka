@@ -48,7 +48,9 @@ public abstract class AbstractPartitionAssignor implements PartitionAssignor {
 
     @Override
     public Map<String, Assignment> assign(Cluster metadata, Map<String, Subscription> subscriptions) {
+        // jfq, 所有由customer注册的topic
         Set<String> allSubscribedTopics = new HashSet<>();
+        // jfq, 每个customer注册了哪些topic
         Map<String, List<String>> topicSubscriptions = new HashMap<>();
         for (Map.Entry<String, Subscription> subscriptionEntry : subscriptions.entrySet()) {
             List<String> topics = subscriptionEntry.getValue().topics();
@@ -56,6 +58,7 @@ public abstract class AbstractPartitionAssignor implements PartitionAssignor {
             topicSubscriptions.put(subscriptionEntry.getKey(), topics);
         }
 
+        // jfq, 每个topic有多少个partition
         Map<String, Integer> partitionsPerTopic = new HashMap<>();
         for (String topic : allSubscribedTopics) {
             Integer numPartitions = metadata.partitionCountForTopic(topic);
@@ -65,8 +68,10 @@ public abstract class AbstractPartitionAssignor implements PartitionAssignor {
                 log.debug("Skipping assignment for topic {} since no metadata is available", topic);
         }
 
+        // jfq, 执行具体的assign工作。该工作是委托给子类的。
         Map<String, List<TopicPartition>> rawAssignments = assign(partitionsPerTopic, topicSubscriptions);
 
+        // jfq, 构造返回值，只是wrap一下。
         // this class has maintains no user data, so just wrap the results
         Map<String, Assignment> assignments = new HashMap<>();
         for (Map.Entry<String, List<TopicPartition>> assignmentEntry : rawAssignments.entrySet())

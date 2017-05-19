@@ -128,6 +128,7 @@ object DelayedOperationPurgatory {
 /**
  * A helper purgatory class for bookkeeping delayed operations with a timeout, and expiring timed out operations.
  */
+// jfq, 参数reaperEnabled总是为true
 class DelayedOperationPurgatory[T <: DelayedOperation](purgatoryName: String,
                                                        timeoutTimer: Timer,
                                                        brokerId: Int = 0,
@@ -144,6 +145,7 @@ class DelayedOperationPurgatory[T <: DelayedOperation](purgatoryName: String,
   private[this] val estimatedTotalOperations = new AtomicInteger(0)
 
   /* background thread expiring operations that have timed out */
+  // jfq, 这是一个线程
   private val expirationReaper = new ExpiredOperationReaper()
 
   private val metricsTags = Map("delayedOperation" -> purgatoryName)
@@ -164,6 +166,7 @@ class DelayedOperationPurgatory[T <: DelayedOperation](purgatoryName: String,
     metricsTags
   )
 
+  // jfq, 总是被启动起来
   if (reaperEnabled)
     expirationReaper.start()
 
@@ -180,6 +183,8 @@ class DelayedOperationPurgatory[T <: DelayedOperation](purgatoryName: String,
    * @param watchKeys keys for bookkeeping the operation
    * @return true iff the delayed operations can be completed by the caller
    */
+  // jfq, 这里就是向TimingWheel提交一个任务。但是并不会直接提交，提交之前会尽力检查是否可以直接完成。不能直接完成的才会提交到TimingWheel。
+  // jfq,
   def tryCompleteElseWatch(operation: T, watchKeys: Seq[Any]): Boolean = {
     assert(watchKeys.nonEmpty, "The watch key list can't be empty")
 
@@ -216,6 +221,7 @@ class DelayedOperationPurgatory[T <: DelayedOperation](purgatoryName: String,
 
     // if it cannot be completed by now and hence is watched, add to the expire queue also
     if (!operation.isCompleted) {
+      // jfq，走到这一步才会放到TimingWheel中。
       timeoutTimer.add(operation)
       if (operation.isCompleted) {
         // cancel the timer task
@@ -232,6 +238,7 @@ class DelayedOperationPurgatory[T <: DelayedOperation](purgatoryName: String,
    *
    * @return the number of completed operations during this process
    */
+  // jfq, 会依次调用该key下所有operation的tryComplete方法。
   def checkAndComplete(key: Any): Int = {
     val watchers = inReadLock(removeWatchersLock) { watchersForKey.get(key) }
     if(watchers == null)
@@ -352,6 +359,7 @@ class DelayedOperationPurgatory[T <: DelayedOperation](purgatoryName: String,
   }
 
   def advanceClock(timeoutMs: Long) {
+    // jfq，把Timer的时间advance一下，这样就会触发部分operation的超时事件。
     timeoutTimer.advanceClock(timeoutMs)
 
     // Trigger a purge if the number of completed but still being watched operations is larger than

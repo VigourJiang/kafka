@@ -23,7 +23,7 @@ import java.util.concurrent.atomic.AtomicInteger
 
 /*
  * Hierarchical Timing Wheels
- *
+ * ***************下面介绍的是Simple Timing Wheel***********************
  * A simple timing wheel is a circular list of buckets of timer tasks. Let u be the time unit.
  * A timing wheel with size n has n buckets and can hold timer tasks in n * u time interval.
  * Each bucket holds timer tasks that fall into the corresponding time range. At the beginning,
@@ -36,7 +36,7 @@ import java.util.concurrent.atomic.AtomicInteger
  * A timing wheel has O(1) cost for insert/delete (start-timer/stop-timer) whereas priority queue
  * based timers, such as java.util.concurrent.DelayQueue and java.util.Timer, have O(log n)
  * insert/delete cost.
- *
+ * ***************下面介绍的是Hierarchical Timing Wheel***********************
  * A major drawback of a simple timing wheel is that it assumes that a timer request is within
  * the time interval of n * u from the current time. If a timer request is out of this interval,
  * it is an overflow. A hierarchical timing wheel deals with such overflows. It is a hierarchically
@@ -99,9 +99,11 @@ import java.util.concurrent.atomic.AtomicInteger
 @nonthreadsafe
 private[timer] class TimingWheel(tickMs: Long, wheelSize: Int, startMs: Long, taskCounter: AtomicInteger, queue: DelayQueue[TimerTaskList]) {
 
+  // jfq, 这是当前时间轮能表示的时间范围
   private[this] val interval = tickMs * wheelSize
   private[this] val buckets = Array.tabulate[TimerTaskList](wheelSize) { _ => new TimerTaskList(taskCounter) }
 
+  // jfq, currentTime总是tickMs的整数倍
   private[this] var currentTime = startMs - (startMs % tickMs) // rounding down to multiple of tickMs
 
   // overflowWheel can potentially be updated and read by two concurrent threads through add().
@@ -132,6 +134,9 @@ private[timer] class TimingWheel(tickMs: Long, wheelSize: Int, startMs: Long, ta
       // Already expired
       false
     } else if (expiration < currentTime + interval) {
+      // jfq，下面的代码注意，timerTaskEntry被放到哪个bucket中，只与timerTaskEntry.expirationMs有关，与currentTime无关。
+      // jfq, 因此，无论timerTaskEntry被重复向一个TimingWheel中添加多少次，都会被添加到一个bucket中。
+      // jfq, 重复添加多次的区别在于：有可能检测到超时或取消（上两个分支），有可能被添加到overflowWheel中（下一个分支）
       // Put in its own bucket
       val virtualId = expiration / tickMs
       val bucket = buckets((virtualId % wheelSize.toLong).toInt)
@@ -139,6 +144,7 @@ private[timer] class TimingWheel(tickMs: Long, wheelSize: Int, startMs: Long, ta
 
       // Set the bucket expiration time
       if (bucket.setExpiration(virtualId * tickMs)) {
+      // jfq, bucket.expiration = timerTaskEntry.expiration / tickMs * tickMs
         // The bucket needs to be enqueued because it was an expired bucket
         // We only need to enqueue the bucket when its expiration time has changed, i.e. the wheel has advanced
         // and the previous buckets gets reused; further calls to set the expiration within the same wheel cycle
@@ -155,8 +161,10 @@ private[timer] class TimingWheel(tickMs: Long, wheelSize: Int, startMs: Long, ta
   }
 
   // Try to advance the clock
+  // jfq, 这里的advanceClock，只是修改currentTime到下一个时刻
   def advanceClock(timeMs: Long): Unit = {
     if (timeMs >= currentTime + tickMs) {
+      // jfq, currentTime总是tickMs的整数倍
       currentTime = timeMs - (timeMs % tickMs)
 
       // Try to advance the clock of the overflow wheel if present

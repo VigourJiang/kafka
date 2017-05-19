@@ -20,23 +20,45 @@ package org.apache.kafka.common.protocol;
  * Identifiers for all the Kafka APIs
  */
 public enum ApiKeys {
+    // jfq, client发送给leader broker，产生新消息
     PRODUCE(0, "Produce"),
+    // jfq, client发送给leader broker，获取消息；follower broker也会给leader发送该消息。
     FETCH(1, "Fetch"),
+    // jfq, client发送给leader broker，根据时间戳查询offset；follower broker也会给leader发送该消息。
     LIST_OFFSETS(2, "Offsets"),
+    // jfq, client发送给任意broker，要求获取cluster的topic、partition等全局信息
     METADATA(3, "Metadata"),
+
+    // jfq, controller <-> broker
     LEADER_AND_ISR(4, "LeaderAndIsr"),
+    // jfq, controller <-> broker
     STOP_REPLICA(5, "StopReplica"),
+    // jfq, controller <-> broker
     UPDATE_METADATA_KEY(6, "UpdateMetadata"),
+
     CONTROLLED_SHUTDOWN_KEY(7, "ControlledShutdown"),
+
+    // jfq, Consumer向Coordinator提交Offset
     OFFSET_COMMIT(8, "OffsetCommit"),
+    // jfq, Consumer从Coordinator获取最近一次提交的Offset
     OFFSET_FETCH(9, "OffsetFetch"),
+
+    // jfq, Consumer向Node发送GROUP_COORDINATOR请求，查询自己的Coordinator是哪个Broker
     GROUP_COORDINATOR(10, "GroupCoordinator"),
+    // jfq, Consumer向Coordinator发送的请求，用来加入某个ConsumerGroup
     JOIN_GROUP(11, "JoinGroup"),
+    // jfq, Consumer向Coordinator发送的HeartBeat
     HEARTBEAT(12, "Heartbeat"),
+    // jfq, Consumer向Coordinator主动请求离开某个consumer Group
     LEAVE_GROUP(13, "LeaveGroup"),
+    // jfq, Consumer向Coordinator发送的Sync_Group命令，leader Consumer和follower Consumer发送的内容不同。
     SYNC_GROUP(14, "SyncGroup"),
+
+    // jfq, Admin工具向Broker发送的请求
     DESCRIBE_GROUPS(15, "DescribeGroups"),
+    // jfq, Admin工具向Broker发送的请求
     LIST_GROUPS(16, "ListGroups"),
+
     SASL_HANDSHAKE(17, "SaslHandshake"),
     API_VERSIONS(18, "ApiVersions"),
     CREATE_TOPICS(19, "CreateTopics"),

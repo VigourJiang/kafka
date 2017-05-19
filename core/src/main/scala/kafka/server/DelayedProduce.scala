@@ -61,6 +61,7 @@ class DelayedProduce(delayMs: Long,
     if (status.responseStatus.errorCode == Errors.NONE.code) {
       // Timeout error state will be cleared when required acks are received
       status.acksPending = true
+      // jfq, 下面是errorCode的默认值
       status.responseStatus.errorCode = Errors.REQUEST_TIMED_OUT.code
     } else {
       status.acksPending = false
@@ -79,10 +80,15 @@ class DelayedProduce(delayMs: Long,
    *         replicas have caught up to this operation: set an error in response
    *   B.2 - Otherwise, set the response with no error.
    */
+  // jfq, Produce会向多个Partition发送消息。
+  // jfq, 这里检查一下每个Partition是否都已经处理了消息，如果每个Partition都处理过该消息（不管成功还是失败），都返回true。
+  // jfq, 有任何Partition还没有处理过，就返回false。
   override def tryComplete(): Boolean = {
     // check for each partition if it still has pending acks
     produceMetadata.produceStatus.foreach { case (topicAndPartition, status) =>
+
       trace(s"Checking produce satisfaction for ${topicAndPartition}, current status $status")
+
       // skip those partitions that have already been satisfied
       if (status.acksPending) {
         val (hasEnough, error) = replicaManager.getPartition(topicAndPartition.topic, topicAndPartition.partition) match {

@@ -38,10 +38,17 @@ import org.apache.kafka.common.requests.{MetadataResponse, PartitionState, Updat
  */
 private[server] class MetadataCache(brokerId: Int) extends Logging {
   private val stateChangeLogger = KafkaController.stateChangeLogger
+
+  // jfq, 一级Key：topic name, 二级Key：PartitionId。
   private val cache = mutable.Map[String, mutable.Map[Int, PartitionStateInfo]]()
+
   private var controllerId: Option[Int] = None
+
+  // jfq, key: broker Id
   private val aliveBrokers = mutable.Map[Int, Broker]()
+  // jfq, key: broker Id, value: list of endpoints。一个broker可以开放多种通信协议(PlainText/SSL等)，每种协议一个端口。
   private val aliveNodes = mutable.Map[Int, collection.Map[SecurityProtocol, Node]]()
+
   private val partitionMetadataLock = new ReentrantReadWriteLock()
 
   this.logIdent = s"[Kafka Metadata Cache on broker $brokerId] "
@@ -155,6 +162,7 @@ private[server] class MetadataCache(brokerId: Int) extends Logging {
 
   def getControllerId: Option[Int] = controllerId
 
+  // jfq, 接收到来自Controller的UPDATE_METADATA_KEY请求后，根据请求对象的内容，更新缓存数据
   def updateCache(correlationId: Int, updateMetadataRequest: UpdateMetadataRequest) {
     inWriteLock(partitionMetadataLock) {
       controllerId = updateMetadataRequest.controllerId match {

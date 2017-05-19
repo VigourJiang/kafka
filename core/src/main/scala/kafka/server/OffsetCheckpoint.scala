@@ -47,12 +47,15 @@ class OffsetCheckpoint(val file: File) extends Logging {
       val fileOutputStream = new FileOutputStream(tempPath.toFile)
       val writer = new BufferedWriter(new OutputStreamWriter(fileOutputStream))
       try {
+        // jfq， 版本号
         writer.write(CurrentVersion.toString)
         writer.newLine()
 
+        // jfq, 行数
         writer.write(offsets.size.toString)
         writer.newLine()
 
+        // jfq, 每行一个(topic, partition, offset)三元组
         offsets.foreach { case (topicPart, offset) =>
           writer.write(s"${topicPart.topic} ${topicPart.partition} $offset")
           writer.newLine()

@@ -415,6 +415,7 @@ class Log(val dir: File,
         trace("Appended message set to log %s with first offset: %d, next offset: %d, and messages: %s"
           .format(this.name, appendInfo.firstOffset, nextOffsetMetadata.messageOffset, validMessages))
 
+        // jfq, 注意flushInterval配置参数。append消息的数量要累积起来，大于等于这个参数才进行flush。
         if (unflushedMessages >= config.flushInterval)
           flush()
 

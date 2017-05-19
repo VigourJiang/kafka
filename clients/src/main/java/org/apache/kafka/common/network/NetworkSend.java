@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 /**
  * A size delimited Send that consists of a 4 byte network-ordered size N followed by N bytes of content
  */
+// jfq, 写入四个字节的body长度信息，然后才是body。
 public class NetworkSend extends ByteBufferSend {
 
     public NetworkSend(String destination, ByteBuffer... buffers) {

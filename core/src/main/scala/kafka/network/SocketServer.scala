@@ -85,6 +85,7 @@ class SocketServer(val config: KafkaConfig, val metrics: Metrics, val time: Time
       val recvBufferSize = config.socketReceiveBufferBytes
       val brokerId = config.brokerId
 
+      // jfq，每个EndPoint对应一个Acceptor线程，每个Acceptor线程对应多个Processor线程。
       var processorBeginIndex = 0
       endpoints.values.foreach { endpoint =>
         val protocol = endpoint.protocolType

@@ -111,6 +111,7 @@ class ReplicaManager(val config: KafkaConfig,
   /* epoch of the controller that last changed the leader */
   @volatile var controllerEpoch: Int = KafkaController.InitialControllerEpoch - 1
   private val localBrokerId = config.brokerId
+  // jfq, key->(topic, partition id)
   private val allPartitions = new Pool[(String, Int), Partition](valueFactory = Some { case (t, p) =>
     new Partition(t, p, time, this)
   })
@@ -157,6 +158,7 @@ class ReplicaManager(val config: KafkaConfig,
       getLeaderPartitions().count(_.isUnderReplicated)
   }
 
+  // jfq, 每隔一定时间，刷新所有的highwater mark数据到文件中。
   def startHighWaterMarksCheckPointThread() = {
     if(highWatermarkCheckPointThreadStarted.compareAndSet(false, true))
       scheduler.schedule("highwatermark-checkpoint", checkpointHighWatermarks, period = config.replicaHighWatermarkCheckpointIntervalMs, unit = TimeUnit.MILLISECONDS)
@@ -175,6 +177,7 @@ class ReplicaManager(val config: KafkaConfig,
    * This allows an occasional ISR change to be propagated within a few seconds, and avoids overwhelming controller and
    * other brokers when large amount of ISR change occurs.
    */
+  // jfq, 这里的propagate是指保存到zk节点上。
   def maybePropagateIsrChanges() {
     val now = System.currentTimeMillis()
     isrChangeSet synchronized {
@@ -218,9 +221,14 @@ class ReplicaManager(val config: KafkaConfig,
     scheduler.schedule("isr-change-propagation", maybePropagateIsrChanges, period = 2500L, unit = TimeUnit.MILLISECONDS)
   }
 
+  // jfq，停止当前broker上指定topic、partition的replica。
+  // jfq, 如果deletePartition=true,会导致本地的log文件被删除
+  // jfq, 但是，如果deletePartition=false, 这个函数只是打印了一些trace信息，没做任何事情
   def stopReplica(topic: String, partitionId: Int, deletePartition: Boolean): Short  = {
+
     stateChangeLogger.trace("Broker %d handling stop replica (delete=%s) for partition [%s,%d]".format(localBrokerId,
       deletePartition.toString, topic, partitionId))
+
     val errorCode = Errors.NONE.code
     getPartition(topic, partitionId) match {
       case Some(partition) =>
@@ -251,6 +259,7 @@ class ReplicaManager(val config: KafkaConfig,
     errorCode
   }
 
+  // jfq, 处理来自于Controller的STOP_REPLICA请求
   def stopReplicas(stopReplicaRequest: StopReplicaRequest): (mutable.Map[TopicPartition, Short], Short) = {
     replicaStateChangeLock synchronized {
       val responseMap = new collection.mutable.HashMap[TopicPartition, Short]
@@ -292,6 +301,7 @@ class ReplicaManager(val config: KafkaConfig,
       throw new ReplicaNotAvailableException("Replica %d is not available for partition [%s,%d]".format(config.brokerId, topic, partition))
   }
 
+  // jfq, local的意思是该Paritition的leader就是当前的broker
   def getLeaderReplicaIfLocal(topic: String, partitionId: Int): Replica =  {
     val partitionOpt = getPartition(topic, partitionId)
     partitionOpt match {
@@ -319,6 +329,7 @@ class ReplicaManager(val config: KafkaConfig,
    * Append messages to leader replicas of the partition, and wait for them to be replicated to other replicas;
    * the callback function will be triggered either when timeout or the required acks are satisfied
    */
+  // jfq, 处理PRODUCE命令的时候被调用，用来执行具体的produce操作
   def appendMessages(timeout: Long,
                      requiredAcks: Short,
                      internalTopicsAllowed: Boolean,
@@ -338,6 +349,10 @@ class ReplicaManager(val config: KafkaConfig,
       }
 
       if (delayedRequestRequired(requiredAcks, messagesPerPartition, localProduceResults)) {
+        // jfq, acks=-1. This means the leader will wait for the full set of in-sync replicas to acknowledge the record.
+        // jfq, This guarantees that the record will not be lost as long as at least one in-sync replica remains alive.
+        // jfq, This is the strongest available guarantee.
+
         // create delayed produce operation
         val produceMetadata = ProduceMetadata(requiredAcks, produceStatus)
         val delayedProduce = new DelayedProduce(timeout, produceMetadata, this, responseCallback)
@@ -453,6 +468,7 @@ class ReplicaManager(val config: KafkaConfig,
    * Fetch messages from the leader replica, and wait until enough data can be fetched and return;
    * the callback function will be triggered either when timeout or required fetch info is satisfied
    */
+  // jfq, 处理FETCH命令
   def fetchMessages(timeout: Long,
                     replicaId: Int,
                     fetchMinBytes: Int,
@@ -646,6 +662,7 @@ class ReplicaManager(val config: KafkaConfig,
     }
   }
 
+  // jfq, 处理来自Controller的LEADER_AND_ISR命令
   def becomeLeaderOrFollower(correlationId: Int,leaderAndISRRequest: LeaderAndIsrRequest,
                              metadataCache: MetadataCache,
                              onLeadershipChange: (Iterable[Partition], Iterable[Partition]) => Unit): BecomeLeaderOrFollowerResult = {

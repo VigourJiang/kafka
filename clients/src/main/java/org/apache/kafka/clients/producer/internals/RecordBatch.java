@@ -33,6 +33,7 @@ public final class RecordBatch {
 
     private static final Logger log = LoggerFactory.getLogger(RecordBatch.class);
 
+    // jfq, 注意，以下字段都是public类型的
     public int recordCount = 0;
     public int maxRecordSize = 0;
     public volatile int attempts = 0;
@@ -43,6 +44,7 @@ public final class RecordBatch {
     public final TopicPartition topicPartition;
     public final ProduceRequestResult produceFuture;
     public long lastAppendTime;
+
     private final List<Thunk> thunks;
     private long offsetCounter = 0L;
     private boolean retry;

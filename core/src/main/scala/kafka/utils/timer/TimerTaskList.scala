@@ -23,6 +23,7 @@ import kafka.utils.{SystemTime, threadsafe}
 
 import scala.math._
 
+// jfq, 这个List是放到DelayQueue中的，也是直接放到Timing Wheel的bucket中的。
 @threadsafe
 private[timer] class TimerTaskList(taskCounter: AtomicInteger) extends Delayed {
 
@@ -33,6 +34,7 @@ private[timer] class TimerTaskList(taskCounter: AtomicInteger) extends Delayed {
   root.next = root
   root.prev = root
 
+  // jfq, 这里的expiration属性，是按照tickMs取整后的
   private[this] val expiration = new AtomicLong(-1L)
 
   // Set the bucket's expiration time
@@ -116,6 +118,8 @@ private[timer] class TimerTaskList(taskCounter: AtomicInteger) extends Delayed {
     }
   }
 
+  // jfq, 放到DelayQueue中后，被调用的接口
+  // jfq, 只有getDelay返回值小于0，DelayQueue的take和poll才会返回该元素。
   def getDelay(unit: TimeUnit): Long = {
     unit.convert(max(getExpiration - SystemTime.hiResClockMs, 0), TimeUnit.MILLISECONDS)
   }
@@ -131,6 +135,7 @@ private[timer] class TimerTaskList(taskCounter: AtomicInteger) extends Delayed {
 
 }
 
+// jfq, expirationMs: 超时的时刻
 private[timer] class TimerTaskEntry(val timerTask: TimerTask, val expirationMs: Long) extends Ordered[TimerTaskEntry] {
 
   @volatile

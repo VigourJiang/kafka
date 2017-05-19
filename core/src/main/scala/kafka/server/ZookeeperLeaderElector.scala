@@ -105,6 +105,7 @@ class ZookeeperLeaderElector(controllerContext: ControllerContext,
 
   def amILeader : Boolean = leaderId == brokerId
 
+  // jfq, 当前Broker主动放弃充当Controller
   def resign() = {
     leaderId = -1
     controllerContext.zkUtils.deletePath(electionPath)
@@ -114,11 +115,14 @@ class ZookeeperLeaderElector(controllerContext: ControllerContext,
    * We do not have session expiration listen in the ZkElection, but assuming the caller who uses this module will
    * have its own session expiration listener and handler
    */
+  // jfq, 通过监控zk节点，完成Controller的竞选
+  // jfq, IZkDataListener定义了两种事件，一种是节点数据的变化，另一种是节点被删除。
   class LeaderChangeListener extends IZkDataListener with Logging {
     /**
      * Called when the leader information stored in zookeeper has changed. Record the new leader in memory
      * @throws Exception On any error.
      */
+    // jfq, 竞选节点的内容发生变化
     @throws(classOf[Exception])
     def handleDataChange(dataPath: String, data: Object) {
       inLock(controllerContext.controllerLock) {
@@ -136,6 +140,7 @@ class ZookeeperLeaderElector(controllerContext: ControllerContext,
      * @throws Exception
      *             On any error.
      */
+    // jfq，竞选节点被删除
     @throws(classOf[Exception])
     def handleDataDeleted(dataPath: String) {
       inLock(controllerContext.controllerLock) {

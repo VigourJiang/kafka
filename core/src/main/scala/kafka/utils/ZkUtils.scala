@@ -42,6 +42,7 @@ import scala.collection._
 object ZkUtils {
   val ConsumersPath = "/consumers"
   val ClusterIdPath = "/cluster/id"
+  // jfq, 该节点的子节点是临时节点，broker启动的时候，以自身的brokerId为名字，在该节点下创建子节点。
   val BrokerIdsPath = "/brokers/ids"
   val BrokerTopicsPath = "/brokers/topics"
   val ControllerPath = "/controller"
@@ -110,6 +111,7 @@ object ZkUtils {
   def getTopicPartitionPath(topic: String, partitionId: Int): String =
     getTopicPartitionsPath(topic) + "/" + partitionId
 
+  // jfq, /brokers/topics/${topic}/partitions/${partitionId}/state
   def getTopicPartitionLeaderAndIsrPath(topic: String, partitionId: Int): String =
     getTopicPartitionPath(topic, partitionId) + "/" + "state"
 
@@ -675,6 +677,20 @@ class ZkUtils(val zkClient: ZkClient,
     ret
   }
 
+  // jfq, 参数topics: topic的名字列表
+  // jfq, 读取zk节点/brokers/topics/[topic]的data，解析出指定topic的所有partition的replica列表
+  // jfq, {
+  // jfq,   "version": "版本编号目前固定为数字1",
+  // jfq,   "partitions": {
+  // jfq,     "partitionId编号": [
+  // jfq,     同步副本组brokerId列表
+  // jfq,     ],
+  // jfq,     "partitionId编号": [
+  // jfq,     同步副本组brokerId列表
+  // jfq,     ],
+  // jfq,     .......
+  // jfq,   }
+  // jfq, }
   def getReplicaAssignmentForTopics(topics: Seq[String]): mutable.Map[TopicAndPartition, Seq[Int]] = {
     val ret = new mutable.HashMap[TopicAndPartition, Seq[Int]]
     topics.foreach { topic =>

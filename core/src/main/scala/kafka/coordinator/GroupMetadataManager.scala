@@ -50,6 +50,8 @@ import com.yammer.metrics.core.Gauge
 import kafka.api.{ApiVersion, KAFKA_0_10_1_IV0}
 import kafka.utils.CoreUtils.inLock
 
+// jfq, 管理属于当前Coordinator的所有Group的GroupMetadata
+// jfq, 参数brokerId： 当前Coordinator的brokerId。只是用于输出日志。
 class GroupMetadataManager(val brokerId: Int,
                            val interBrokerProtocolVersion: ApiVersion,
                            val config: OffsetConfig,
@@ -57,6 +59,7 @@ class GroupMetadataManager(val brokerId: Int,
                            zkUtils: ZkUtils,
                            time: Time) extends Logging with KafkaMetricsGroup {
 
+  // jfq, Map group Id To group metadata
   private val groupMetadataCache = new Pool[String, GroupMetadata]
 
   /* lock protecting access to loading and owned partition sets */
@@ -75,6 +78,7 @@ class GroupMetadataManager(val brokerId: Int,
   private val groupMetadataTopicPartitionCount = getOffsetsTopicPartitionCount
 
   /* single-thread scheduler to handle offset/group metadata cache loading and unloading */
+  // jfq，这个线程总是启动的
   private val scheduler = new KafkaScheduler(threads = 1, threadNamePrefix = "group-metadata-manager-")
 
   this.logIdent = "[Group Metadata Manager on Broker " + brokerId + "]: "
@@ -108,6 +112,7 @@ class GroupMetadataManager(val brokerId: Int,
 
   def isPartitionLoading(partition: Int) = inLock(partitionLock) { loadingPartitions.contains(partition) }
 
+  // jfq, 根据Consumer Group Id，计算ConsumerGroup的Offset保存在哪个Partition
   def partitionFor(groupId: String): Int = Utils.abs(groupId.hashCode) % groupMetadataTopicPartitionCount
 
   def isGroupLocal(groupId: String): Boolean = isPartitionOwned(partitionFor(groupId))
@@ -136,6 +141,7 @@ class GroupMetadataManager(val brokerId: Int,
   }
 
 
+  // jfq, 构造出一个DelayedStore对象并返回。不修改其他内存数据或者硬盘数据。
   def prepareStoreGroup(group: GroupMetadata,
                         groupAssignment: Map[String, Array[Byte]],
                         responseCallback: Errors => Unit): Option[DelayedStore] = {
@@ -233,6 +239,7 @@ class GroupMetadataManager(val brokerId: Int,
   /**
    * Store offsets by appending it to the replicated log and then inserting to cache
    */
+  // jfq, 构造一个DelayedStore对象并返回。会修改group.pendingOffsetCommits字段。
   def prepareStoreOffsets(group: GroupMetadata,
                           consumerId: String,
                           generationId: Int,
@@ -402,6 +409,7 @@ class GroupMetadataManager(val brokerId: Int,
       try {
         replicaManager.logManager.getLog(topicPartition) match {
           case Some(log) =>
+            // jfq, 这里从第一个Segment的baseOffset开始读，因此也就是从最低的Offset开始读
             var currOffset = log.logSegments.head.baseOffset
             val buffer = ByteBuffer.allocate(config.loadBufferSize)
             // loop breaks if leader changes at any time during the load, since getHighWatermark is -1
@@ -420,30 +428,37 @@ class GroupMetadataManager(val brokerId: Int,
                 val baseKey = GroupMetadataManager.readMessageKey(msgAndOffset.message.key)
 
                 if (baseKey.isInstanceOf[OffsetKey]) {
+                  // jfq, Offset Commit Message
                   // load offset
                   val key = baseKey.key.asInstanceOf[GroupTopicPartition]
                   if (msgAndOffset.message.payload == null) {
+                    // jfq, tombstone message
                     loadedOffsets.remove(key)
                     removedOffsets.add(key)
                   } else {
+                    // jfq, 更新offset信息，注意加载的会覆盖之前加载的
                     val value = GroupMetadataManager.readOffsetMessageValue(msgAndOffset.message.payload)
                     loadedOffsets.put(key, value)
                     removedOffsets.remove(key)
                   }
                 } else {
+                  // jfq, Group Metadata Message
                   // load group metadata
                   val groupId = baseKey.key.asInstanceOf[String]
                   val groupMetadata = GroupMetadataManager.readGroupMessageValue(groupId, msgAndOffset.message.payload)
                   if (groupMetadata != null) {
+                    // jfq, 更新group meta data。后加载的会覆盖之前加载的。
                     trace(s"Loaded group metadata for group ${groupMetadata.groupId} with generation ${groupMetadata.generationId}")
                     removedGroups.remove(groupId)
                     loadedGroups.put(groupId, groupMetadata)
                   } else {
+                    // jfq, tombstone message
                     loadedGroups.remove(groupId)
                     removedGroups.add(groupId)
                   }
                 }
 
+                // jfq，读取下一条消息
                 currOffset = msgAndOffset.nextOffset
               }
             }
@@ -491,6 +506,7 @@ class GroupMetadataManager(val brokerId: Int,
     }
   }
 
+  // jfq, 更新group对象中的offset信息
   private def loadGroup(group: GroupMetadata, offsets: Iterable[(TopicPartition, OffsetAndMetadata)]): Unit = {
     val currentGroup = addGroup(group)
     if (group != currentGroup) {
@@ -537,6 +553,7 @@ class GroupMetadataManager(val brokerId: Int,
         // to prevent coordinator's check-and-get-group race condition
         ownedPartitions.remove(offsetsPartition)
 
+        // jfq, 一个offset partition，存储了若干个group的数据
         for (group <- groupMetadataCache.values) {
           if (partitionFor(group.groupId) == offsetsPartition) {
             onGroupUnloaded(group)
@@ -556,6 +573,9 @@ class GroupMetadataManager(val brokerId: Int,
   }
 
   // visible for testing
+  // jfq, 在定时任务中执行。
+  // jfq, 首先查询已经超时的OffsetCommit信息，并向__consumer_offsets的相关partition写入OffsetCommit的tombstone信息。
+  // jfq, 如果所有offsetcommit都已经超时，且满足其他条件（见代码），则向__consumer_offsets的相关partition写入groupmeta的tombstone信息。
   private[coordinator] def cleanupGroupMetadata() {
     val startMs = time.milliseconds()
     var offsetsRemoved = 0

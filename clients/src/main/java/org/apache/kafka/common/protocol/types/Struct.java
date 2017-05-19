@@ -19,7 +19,9 @@ import java.util.Arrays;
  * A record that can be serialized and deserialized according to a pre-defined schema
  */
 public class Struct {
+    // jfq，定一个各个字段的元数据。多个同类型的Struct指向同一个schema。
     private final Schema schema;
+    // jfq, 需要序列化和反序列化的各个字段
     private final Object[] values;
 
     Struct(Schema schema, Object[] values) {

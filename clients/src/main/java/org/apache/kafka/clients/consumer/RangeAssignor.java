@@ -45,6 +45,8 @@ public class RangeAssignor extends AbstractPartitionAssignor {
         return "range";
     }
 
+    // jfq, 参数，Key: consumerId, Value: list of topic
+    // jfq, 返回值，Key: topic, value: list of consumerId
     private Map<String, List<String>> consumersPerTopic(Map<String, List<String>> consumerMetadata) {
         Map<String, List<String>> res = new HashMap<>();
         for (Map.Entry<String, List<String>> subscriptionEntry : consumerMetadata.entrySet()) {
@@ -55,9 +57,11 @@ public class RangeAssignor extends AbstractPartitionAssignor {
         return res;
     }
 
+    // jfq，返回值，Key：consumerId
     @Override
     public Map<String, List<TopicPartition>> assign(Map<String, Integer> partitionsPerTopic,
                                                     Map<String, List<String>> subscriptions) {
+        // jfq, map topic to list of consumers
         Map<String, List<String>> consumersPerTopic = consumersPerTopic(subscriptions);
         Map<String, List<TopicPartition>> assignment = new HashMap<>();
         for (String memberId : subscriptions.keySet())

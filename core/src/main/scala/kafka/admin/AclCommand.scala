@@ -25,6 +25,9 @@ import org.apache.kafka.common.utils.Utils
 
 import scala.collection.JavaConverters._
 
+// jfq, 所有的ack信息，最终都是存放在zk的/kafka-acl目录下
+// jfq, 另外，broker中存储ack的缓存。
+// jfq, 增加、删除ack，就是操作zk数据和broker缓存
 object AclCommand {
 
   val Newline = scala.util.Properties.lineSeparator

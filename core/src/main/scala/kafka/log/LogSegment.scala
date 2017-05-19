@@ -124,7 +124,9 @@ class LogSegment(val log: FileMessageSet,
    */
   @threadsafe
   private[log] def translateOffset(offset: Long, startingFilePosition: Int = 0): (OffsetPosition, Int) = {
+    // jfq，首先利用索引进行二分查找
     val mapping = index.lookup(offset)
+    // jfq，然后进行顺序查找
     log.searchForOffsetWithSize(offset, max(mapping.position, startingFilePosition))
   }
 
